@@ -8,9 +8,6 @@ using GTA.Math;
 using GTA.Native;
 using NativeUI;
 
-/// <summary>
-/// F7キーが押された時にブリスタをプレイヤの近くに出現させる
-/// </summary>
 public class Deathmatch : Script
 {
     //General values
