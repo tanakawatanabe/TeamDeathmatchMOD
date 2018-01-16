@@ -41,7 +41,7 @@ public class Deathmatch : Script
     List<Vector3> enemyPositions = new List<Vector3>();
 
     //Ped variations
-    List<string> pedNames = new List<string>();
+    List <string> pedNames = new List<string>();
     List<int> pedHashkeyList = new List<int>();
 
     WeaponHash[] weaponset;
@@ -140,9 +140,16 @@ public class Deathmatch : Script
     Vehicle tankWreck;
     float timeSinceTankSpawned = 0;
 
+    //Juggernaut values
+    bool isJuggernautInField = false;
+    bool juggernautArrived = false;
+    PedHash juggernaut = PedHash.Juggernaut01M;
+    Ped jug;
+
     //Vehicle support values 
     bool vehicleSupport = true;
     int timeSinceVehicleCalled = 0;
+    int vehicleSupportInterval = 500;
     int timeSinceFired = 0;
     enum supportVehicles { Insurgent, Valkyrie, Tank };
     supportVehicles vehicle;
@@ -582,6 +589,7 @@ public class Deathmatch : Script
             TankControll();
             GuntruckControll();
             ChopperControll();
+            JuggernautControll();
 
             
 
@@ -727,24 +735,31 @@ public class Deathmatch : Script
         Random rnd = new System.Random();
 
         //Support Vehicles
-        if (timeSinceVehicleCalled > 4500 && vehicleSupport)
+        if (timeSinceVehicleCalled > vehicleSupportInterval && vehicleSupport)
         {
             timeSinceVehicleCalled = 0;
+            int intResult = rnd.Next(3);
 
             if (isGroundSupportAvailable)
             {
-                if (rnd.Next(2) > 0)
+                if (intResult == 0)
                 {
                     SpawnTank();
                 }
-                else
+                else if (intResult == 1)
                 {
                     SpawnGuntruck();
+                }
+                else if (intResult == 2)
+                {
+                    SpawnJuggernaut();
                 }
             }
 
             if (isChopperAvailable)
-                SpawnChopper();
+            {
+                //SpawnChopper();
+            }
         }
 
         if (vehicleSupport)
@@ -781,12 +796,19 @@ public class Deathmatch : Script
         }
         else
         {
-            if (friendPeds.Count < minPedAmmount)
-                CreateFriendly(3);
-            if (enemyPeds.Count < minPedAmmount)
-                CreateEnemy(3);
+            spawnPedTimer++;
+            if(spawnPedTimer > 30)
+            {
+                spawnPedTimer = 0;
+                if (friendPeds.Count < minPedAmmount)
+                    CreateFriendly(1);
+                if (enemyPeds.Count < minPedAmmount)
+                    CreateEnemy(1);
+            }
         }
     }
+
+    int spawnPedTimer = 0;
 
     Vector3 ReadPosition(string positionName)
     {
@@ -858,9 +880,8 @@ public class Deathmatch : Script
 
             isWave = true;
 
-            CreateFriendly(waveAmount);
-            CreateEnemy(waveAmount);
-            //friendPeds.Add(player);
+            //CreateFriendly(waveAmount);
+            //CreateEnemy(waveAmount);
 
             //World.CreatePickup(PickupType.Armour, friendlyPositions[0].Around(1),);
             World.CreatePickup(PickupType.Armour, friendlyPositions[0].Around(1), new Model("prop_armour_pickup"), 100);
@@ -895,6 +916,15 @@ public class Deathmatch : Script
 
             friendPeds.Clear();
             friendlyKills = 0;
+
+            Ped[] nearbypeds = World.GetNearbyPeds(friendlyPositions[0], 2000);
+            for (int i = 0; i < nearbypeds.Length; i++)
+            {
+                if (nearbypeds[i].IsDead)
+                {
+                    nearbypeds[i].MarkAsNoLongerNeeded();
+                }
+            }
 
             isGuntruckAvaileble = true;
             isGuntruckInField = false;
@@ -989,6 +1019,8 @@ public class Deathmatch : Script
 
     }
 
+
+
     void SpawnTank()
     {
         //spawn Tank
@@ -1078,6 +1110,51 @@ public class Deathmatch : Script
         //delete previous chopper
         if (chopperWreck != null)
             chopperWreck.Delete();
+
+    }
+
+    void SpawnJuggernaut()
+    {
+
+        isGroundSupportAvailable = false;
+        
+        Random rnd = new System.Random();
+
+        jug = World.CreatePed(juggernaut, enemyPositions[rnd.Next(enemyPositions.Count - 1)].Around(0.5f));
+        //jug = World.CreatePed(juggernaut, vehDest);
+        jug.MaxHealth = 4000;
+        jug.Health = 4000;
+        jug.Accuracy = 100;
+        jug.Weapons.Give(WeaponHash.Minigun, 3000, true, true);
+        jug.CanSufferCriticalHits = false;
+        jug.IsFireProof = true;
+        //jug.IsExplosionProof = true;
+        jug.IsMeleeProof = true;
+        jug.CanRagdoll = false;
+        jug.FiringPattern = FiringPattern.FullAuto;
+        //jug.MovementAnimationSet
+        juggernautArrived = false;
+
+        Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, jug, EnemyRelationShipGroup);
+        jug.Task.RunTo(friendlyPositions[0]);
+        enemyPeds.Add(jug);
+
+        isJuggernautInField = true;
+        UI.Notify("Spawned Juggernaut.");
+    }
+
+    int jugMinigunTimer = 0;
+
+    void JuggernautControll()
+    {
+        if (isJuggernautInField)
+        {
+            if (jug.IsDead)
+            {
+                isJuggernautInField = false;
+                isGroundSupportAvailable = true;
+            }
+        }
 
     }
 
