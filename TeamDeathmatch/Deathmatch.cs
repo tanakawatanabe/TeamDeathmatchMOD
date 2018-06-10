@@ -17,15 +17,14 @@ namespace TeamDeathmatch
         Ped player = Game.Player.Character;
         bool isInMatch = false;
         float teamDistance = 100;
-        public List<int> deadpeds = new List<int>();
-        public List<ScriptSettings> locations = new List<ScriptSettings>();
-        public ScriptSettings currentLocation;
+        public List<XDocument> locationSettings = new List<XDocument>();
+        public XDocument currentLocation;
         int minPedAmmount = 20;
         public int matchPoint = 200;
         public bool spawnEnemyAsCops = false;
         public enum GameMode { TeamDeathmatch, Survival };
         public GameMode mode = GameMode.TeamDeathmatch;
-        public List<dynamic> listoflocations = new List<dynamic>();
+        public List<dynamic> listofLocationNames = new List<dynamic>();
         public List<dynamic> listofWeaponsets = new List<dynamic>();
         public List<dynamic> listofMatchpoints = new List<dynamic>();
 
@@ -198,6 +197,7 @@ namespace TeamDeathmatch
             KeyDown += OnKeyDown;
         }
 
+        XDocument tes;
 
         void ReadSettings()
         {
@@ -225,22 +225,22 @@ namespace TeamDeathmatch
 
         void TeamSetup()
         {
-            team0.game = this;
-            team1.game = this;
+            team0.ChangeName("Friendly");
+            team1.ChangeName("Enemy");
 
-            team0.relationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "PLAYER");
-            team1.relationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "HATES_PLAYER");
+            team0.RelationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "PLAYER");
+            team1.RelationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "HATES_PLAYER");
 
-            team0.enemyTeam = team1;
-            team1.enemyTeam = team0;
+            team0.EnemyTeam = team1;
+            team1.EnemyTeam = team0;
 
             team0.weaponSet = weapons;
             team1.weaponSet = weapons;
 
-            team0.ped = (PedHash)pedHashkeyList[0].GetHashCode();
-            team0.ped1 = (PedHash)pedHashkeyList[0].GetHashCode();
-            team1.ped = (PedHash)pedHashkeyList[1].GetHashCode();
-            team1.ped1 = (PedHash)pedHashkeyList[1].GetHashCode();
+            team0.Ped0 = (PedHash)pedHashkeyList[0].GetHashCode();
+            team0.Ped1 = (PedHash)pedHashkeyList[0].GetHashCode();
+            team1.Ped0 = (PedHash)pedHashkeyList[1].GetHashCode();
+            team1.Ped1 = (PedHash)pedHashkeyList[1].GetHashCode();
         }
 
         public List<dynamic> listOfPeds = new List<dynamic>();
@@ -360,7 +360,7 @@ namespace TeamDeathmatch
             }
             else
             {
-                CheckSurvival();
+                SurvivalControl();
             }
 
             team1.CheckMembers();
@@ -375,8 +375,10 @@ namespace TeamDeathmatch
             team0.ChopperControl();
             team0.JuggernautControl();
 
-            if (!team0.members.Contains(Game.Player.Character) && Game.Player.IsAlive)
-                team0.members.Add(Game.Player.Character);
+            team1.AddEnemy(Game.Player.Character);
+
+            //if (!team0.members.Contains(Game.Player.Character) && Game.Player.IsAlive)
+            //    team0.members.Add(Game.Player.Character);
         }
 
         void CheckMatch()
@@ -422,10 +424,100 @@ namespace TeamDeathmatch
         bool isInWave = false;
         int waveTimer = 100;
 
-        void CheckSurvival()
+        void StartWave()
+        {
+
+            waveTimer = 0;
+            isInWave = true;
+            UI.Notify("Wave " + wave.ToString() + " started.");
+
+            switch (wave)
+            {
+                case 1:
+                currentWaveAmount = wave1Amount;
+                    break;
+                case 2:
+                    currentWaveAmount = wave2_3Amount;
+                    if (team1.enableGuntruck)
+                        team1.SpawnGuntruck();
+                    break;
+                case 3:
+                    currentWaveAmount = wave2_3Amount;
+                    if (team1.enableTank)
+                        team1.SpawnTank();
+                    break;
+                case 4:
+                    currentWaveAmount = wave3_5Amount;
+                    if (team1.enableChopper)
+                        team1.SpawnChopper();
+                    break;
+                default:
+                    currentWaveAmount = wave3_5Amount;
+                    SpawnSupportRandomly();
+                    break;
+            }
+        }
+
+        enum Support
+        {
+            Guntruck,
+            Chopper,
+            Tank,
+            Juggernaut,
+        }
+
+        void SpawnSupportRandomly()
+        {
+            List<Support> supportList = new List<Support>();
+
+            if (team1.enableGuntruck)
+            {
+                supportList.Add(Support.Guntruck);
+            }
+            if (team1.enableTank)
+            {
+                supportList.Add(Support.Tank);
+            }
+            if (team1.enableChopper)
+            {
+                supportList.Add(Support.Chopper);
+            }
+            if (team1.enableJuggernaut)
+            {
+                supportList.Add(Support.Juggernaut);
+            }
+
+            Random rnd = new System.Random();
+            Support selectedSupport = supportList[rnd.Next(supportList.Count)];
+
+            switch (selectedSupport)
+            {
+                case Support.Guntruck:
+                    team1.SpawnGuntruck();
+                    break;
+                case Support.Tank:
+                    team1.SpawnTank();
+                    break;
+                case Support.Chopper:
+                    team1.SpawnChopper();
+                    break;
+                case Support.Juggernaut:
+                    team1.SpawnJuggernaut();
+                    break;
+                default:
+                    break;
+            }
+            
+            
+        }
+
+        void SurvivalControl()
         {
             if (Game.Player.IsAlive == false)
+            {
+                UI.ShowSubtitle("You survived " + wave + " waves, killed " + team0.kills + " enemies.", 10000);
                 StopMatch();
+            }
 
             if (!isInWave)
             {
@@ -433,62 +525,30 @@ namespace TeamDeathmatch
 
                 //Start wave
                 if (waveTimer > 600)
-                {
-
-
-                    if (wave == 1)
-                    {
-                        currentWaveAmount = wave1Amount;
-                    }
-                    else if (wave == 2)
-                    {
-                        currentWaveAmount = wave2_3Amount;
-                        if (team1.enableGuntruck)
-                            team1.SpawnGuntruck();
-                    }
-                    else if (wave == 3)
-                    {
-                        currentWaveAmount = wave2_3Amount;
-                        if (team1.enableTank)
-                            team1.SpawnTank();
-                    }
-                    else if (wave == 4)
-                    {
-                        currentWaveAmount = wave3_5Amount;
-                        if (team1.enableChopper)
-                            team1.SpawnChopper();
-                    }
-                    else
-                    {
-                        currentWaveAmount = wave3_5Amount;
-                        team1.SpawnJuggernaut();
-                        if (team1.enableChopper)
-                            team1.SpawnChopper();
-                    }
-                    waveTimer = 0;
-                    isInWave = true;
-                    UI.Notify("Wave " + wave.ToString() + " started.");
-                }
+                    StartWave();
             }
             else
-            {
-                //In wave
-                spawnPedTimer++;
-                if (spawnPedTimer > 30 && spawnedEnemies < currentWaveAmount)
-                {
-                    spawnPedTimer = 0;
-                    team1.SpawnMember(1);
-                    spawnedEnemies++;
-                }
+                InWave();
+        }
 
-                //Clear wave
-                if (spawnedEnemies >= currentWaveAmount && team1.members.Count == 0)
-                {
-                    isInWave = false;
-                    UI.Notify("Wave " + wave.ToString() + " finished.");
-                    spawnedEnemies = 0;
-                    wave++;
-                }
+        void InWave()
+        {
+            //In wave
+            spawnPedTimer++;
+            if (spawnPedTimer > 30 && spawnedEnemies < currentWaveAmount)
+            {
+                spawnPedTimer = 0;
+                team1.SpawnMember(1);
+                spawnedEnemies++;
+            }
+
+            //Clear wave
+            if (spawnedEnemies >= currentWaveAmount && team1.members.Count == 0)
+            {
+                isInWave = false;
+                UI.Notify("Wave " + wave.ToString() + " finished.");
+                spawnedEnemies = 0;
+                wave++;
             }
         }
 
@@ -496,50 +556,74 @@ namespace TeamDeathmatch
 
         Vector3 ReadPosition(string positionName)
         {
-            float x = currentLocation.GetValue<float>(positionName, "X", 0);//(category, name, default value)
-            float y = currentLocation.GetValue<float>(positionName, "Y", 0);//(category, name, default value)
-            float z = currentLocation.GetValue<float>(positionName, "Z", 0);//(category, name, default value)
+            float x = float.Parse(currentLocation.Element("LOCATION").Element(positionName).Attribute("X").Value);
+            float y = float.Parse(currentLocation.Element("LOCATION").Element(positionName).Attribute("Y").Value);
+            float z = float.Parse(currentLocation.Element("LOCATION").Element(positionName).Attribute("Z").Value);
 
             return new Vector3(x, y, z);
         }
 
-        public void WritePosition(ScriptSettings location, string positionName, float x, float y, float z)
+        public void WritePosition(XElement table, string positionName, Vector3 pos)
         {
-            location.SetValue(positionName, "X", x);
-            location.SetValue(positionName, "Y", y);
-            location.SetValue(positionName, "Z", z);
+
+            XElement newElement = new XElement(positionName);
+            XAttribute newX = new XAttribute("X", pos.X.ToString());
+            XAttribute newY = new XAttribute("Y", pos.Y.ToString());
+            XAttribute newZ = new XAttribute("Z", pos.Z.ToString());
+            newElement.Add(newX);
+            newElement.Add(newY);
+            newElement.Add(newZ);
+            table.Add(newElement);
+
         }
 
 
         string[] fileNames;
         string path = @"scripts\Locations\";
 
+        public static string RevoveChars(string s, string[] removes)
+        {
+            System.Text.StringBuilder buf = new System.Text.StringBuilder(s);
+            foreach (string rm in removes)
+            {
+                buf.Replace(rm, "");
+            }
+            return buf.ToString();
+        }
+
         public void LoadLocation()
         {
             fileNames = Directory.GetFiles(path);
 
-            //Load locations
-            locations.Clear();
-            listoflocations.Clear();
+
+
+            //Load locationSettings
+            locationSettings.Clear();
+            listofLocationNames.Clear();
 
             for (int i = 0; i < fileNames.Length; i++)
             {
-                locations.Add(ScriptSettings.Load(fileNames[i]));
+                locationSettings.Add(XDocument.Load(fileNames[i]));
             }
-            currentLocation = locations[0];
+            currentLocation = locationSettings[0];
+
+            string[] removeStrings = new string[2];
+            removeStrings[0] = @"scripts\Locations\";
+            removeStrings[1] = ".xml";
             for (int i = 0; i < fileNames.Length; i++)
             {
-                listoflocations.Add(fileNames[i]);
+                listofLocationNames.Add(RevoveChars(fileNames[i], removeStrings));
             }
-            UI.Notify(locations.Count + " locations available.");
+            UI.Notify(locationSettings.Count + " locations available.");
         }
 
         public void ReadCurrentLocation()
         {
-            //Load locations
+            //Load locationSettings
 
             team0.spawnPositions.Clear();
             team1.spawnPositions.Clear();
+
             team0.spawnPositions.Add(ReadPosition("FRIENDPOS"));
             team1.spawnPositions.Add(ReadPosition("ENEMYPOS0"));
             team1.spawnPositions.Add(ReadPosition("ENEMYPOS1"));
@@ -562,8 +646,6 @@ namespace TeamDeathmatch
         {
             if (!isInMatch)
             {
-
-                ReadCurrentLocation();
 
                 team0.StartMatch();
                 team1.StartMatch();
@@ -593,7 +675,6 @@ namespace TeamDeathmatch
             if (isInMatch)
             {
                 isInMatch = false;
-                deadpeds.Clear();
                 teamDistance = 100;
 
                 isInWave = false;
@@ -638,8 +719,8 @@ namespace TeamDeathmatch
             teleport = new UIMenuItem("Teleport to Friendly Spawn Point");
             mainMenu.AddItem(teleport);
 
-            loadLocations = new UIMenuItem("Load Locations");
-            mainMenu.AddItem(loadLocations);
+            //loadLocations = new UIMenuItem("Load Locations");
+            //mainMenu.AddItem(loadLocations);
 
 
 
@@ -709,7 +790,7 @@ namespace TeamDeathmatch
         {
             UIMenu settingMenu = modMenuPool.AddSubMenu(mainMenu, "Settings");
 
-            locList = new UIMenuListItem("Location: ", listoflocations, 0);
+            locList = new UIMenuListItem("Location: ", listofLocationNames, 0);
             settingMenu.AddItem(locList);
 
 
@@ -812,9 +893,9 @@ namespace TeamDeathmatch
             if (item == spawnAsCopToggle)
             {
                 if (checked_)
-                    team1.relationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "COPS");
+                    team1.RelationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "COPS");
                 else
-                    team1.relationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "HATES_PLAYER");
+                    team1.RelationshipGroup = Function.Call<int>(Hash.GET_HASH_KEY, "HATES_PLAYER");
 
             }
         }
@@ -824,13 +905,13 @@ namespace TeamDeathmatch
             if (item == locList)
                 OnLocationEditorOnListChange(sender, item, index);
             if (item == friendPedChoise)
-                team0.ped = (PedHash)pedHashkeyList[index].GetHashCode();
+                team0.Ped0 = (PedHash)pedHashkeyList[index].GetHashCode();
             if (item == friendPed1Choise)
-                team0.ped1 = (PedHash)pedHashkeyList[index].GetHashCode();
+                team0.Ped1 = (PedHash)pedHashkeyList[index].GetHashCode();
             if (item == enemyPedChoise)
-                team1.ped = (PedHash)pedHashkeyList[index].GetHashCode();
+                team1.Ped0 = (PedHash)pedHashkeyList[index].GetHashCode();
             if (item == enemyPed1Choise)
-                team1.ped1 = (PedHash)pedHashkeyList[index].GetHashCode();
+                team1.Ped1 = (PedHash)pedHashkeyList[index].GetHashCode();
             if (item == weaponsList)
             {
                 currentWeaponsType = listofWeaponsets[index];
@@ -966,7 +1047,7 @@ namespace TeamDeathmatch
         void OnLocationEditorOnListChange(UIMenu sender, UIMenuItem item, int index)
         {
 
-            currentLocation = locations[index];
+            currentLocation = locationSettings[index];
             ReadCurrentLocation();
 
             for (int i = 0; i < team0.spawnPositions.Count; i++)
@@ -994,79 +1075,101 @@ namespace TeamDeathmatch
         void OnLocationEditorItemSelect(UIMenu sender, UIMenuItem item, int index)
         {
             int listIndex = locList.Index;
-            ScriptSettings currentEditing = locations[listIndex];
+            XDocument currentEditing = locationSettings[listIndex];
             Vector3 newPos = Game.Player.Character.Position;
 
             if (item == friendlyPos)
             {
                 friendPosBlips[0].Position = newPos;
-                WritePosition(currentEditing, "FriendPos", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == enemyPos0)
             {
                 enemyPosBlips[0].Position = newPos;
-                WritePosition(currentEditing, "EnemyPos0", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == enemyPos1)
             {
                 enemyPosBlips[1].Position = newPos;
-                WritePosition(currentEditing, "EnemyPos1", newPos.X, newPos.Y, newPos.Z);
+
             }
             if (item == enemyPos2)
             {
                 enemyPosBlips[2].Position = newPos;
-                WritePosition(currentEditing, "EnemyPos2", newPos.X, newPos.Y, newPos.Z);
+
             }
             if (item == enemyPos3)
             {
                 enemyPosBlips[3].Position = newPos;
-                WritePosition(currentEditing, "EnemyPos3", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == carPos)
             {
                 enemyCarPosBlip.Position = newPos;
-                WritePosition(currentEditing, "VehicleSpawns", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == carDest)
             {
                 enemyCarDestBlip.Position = newPos;
-                WritePosition(currentEditing, "VehicleGoes", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == heliPos)
             {
                 enemyChopperPosBlip.Position = newPos;
-                WritePosition(currentEditing, "ChopperSpawns", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == heliDest)
             {
                 enemyChopperDestBlip.Position = newPos;
-                WritePosition(currentEditing, "ChopperGoes", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == friendCarPos)
             {
                 friendlyCarPosBlip.Position = newPos;
-                WritePosition(currentEditing, "FRIENDVEHSPAWNS", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == friendCarDest)
             {
                 friendlyCarDestBlip.Position = newPos;
-                WritePosition(currentEditing, "FRIENDVEHGOES", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == friendHeliPos)
             {
                 friendlyChopperPosBlip.Position = newPos;
-                WritePosition(currentEditing, "FRIENDCHOPPERSPAWNS", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == friendHeliDest)
             {
                 friendlyChopperDestBlip.Position = newPos;
-                WritePosition(currentEditing, "FRIENDCHOPPERGOES", newPos.X, newPos.Y, newPos.Z);
             }
             if (item == saveLocation)
             {
-                currentEditing.Save();
-                UI.Notify("Location saved.");
+                //currentEditing.Save();
+                SaveLocation();
+
+                //UI.Notify("Location saved.");
             }
+        }
+
+        void SaveLocation()
+        {
+
+            string saveName = Game.GetUserInput(WindowTitle.PM_NAME_CHALL, listofLocationNames[locList.Index], 20);
+
+            XDocument newXml = new XDocument();
+            XElement locationTable = new XElement("LOCATION");
+
+            //Write
+            WritePosition(locationTable, "FRIENDPOS", friendPosBlips[0].Position);
+            WritePosition(locationTable, "ENEMYPOS0", enemyPosBlips[0].Position);
+            WritePosition(locationTable, "ENEMYPOS1", enemyPosBlips[1].Position);
+            WritePosition(locationTable, "ENEMYPOS2", enemyPosBlips[2].Position);
+            WritePosition(locationTable, "ENEMYPOS3", enemyPosBlips[3].Position);
+            WritePosition(locationTable, "VEHICLESPAWNS", enemyCarPosBlip.Position);
+            WritePosition(locationTable, "VEHICLEGOES", enemyCarDestBlip.Position);
+            WritePosition(locationTable, "CHOPPERSPAWNS", enemyChopperPosBlip.Position);
+            WritePosition(locationTable, "CHOPPERGOES", enemyChopperDestBlip.Position);
+            WritePosition(locationTable, "FRIENDVEHSPAWNS", friendlyCarPosBlip.Position);
+            WritePosition(locationTable, "FRIENDVEHGOES", friendlyCarDestBlip.Position);
+            WritePosition(locationTable, "FRIENDCHOPPERSPAWNS", friendlyChopperPosBlip.Position);
+            WritePosition(locationTable, "FRIENDCHOPPERGOES", friendlyChopperDestBlip.Position);
+
+            newXml.Add(locationTable);
+
+            newXml.Save(@"scripts//Locations//" + saveName + ".xml");
+
+            UI.ShowSubtitle("Saved " + saveName + ". Available from next loading.");
+
         }
     }
 }
