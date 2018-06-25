@@ -52,6 +52,10 @@ namespace TeamDeathmatch
         public List<Ped> enemies = new List<Ped>();
         public List<Vector3> spawnPositions = new List<Vector3>();
 
+        bool spawnLocked = false;
+        float spawnLockTimer = 0;
+        float spawnLockTime = 200;
+
         //Weapons
         public WeaponHash[] weaponSet;
 
@@ -137,26 +141,31 @@ namespace TeamDeathmatch
 
         public void SpawnMember(int amount)
         {
-            Random rnd = new System.Random();
-
-            for (int i = 0; i < amount; i++)
+            if (!spawnLocked)
             {
-                PedHash selectedPed = ped;
-                if (rnd.Next(0, 50) > 25)
-                    selectedPed = ped1;
+                Random rnd = new System.Random();
 
-                
-                Ped member = World.CreatePed(selectedPed, spawnPositions[rnd.Next(spawnPositions.Count)].Around(0.5f));
-
-                if(member != null)
+                for (int i = 0; i < amount; i++)
                 {
-                    GiveWeapon(member);
-                    Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, member, relationshipGroup);
-                    member.Task.RunTo(enemyTeam.spawnPositions[rnd.Next(enemyTeam.spawnPositions.Count)]);
-                    members.Add(member);
-                    enemyTeam.AddEnemy(member);
+                    PedHash selectedPed = ped;
+                    if (rnd.Next(0, 50) > 25)
+                        selectedPed = ped1;
+
+
+                    Ped member = World.CreatePed(selectedPed, spawnPositions[rnd.Next(spawnPositions.Count)].Around(0.5f));
+
+                    if (member != null)
+                    {
+                        GiveWeapon(member);
+                        Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, member, relationshipGroup);
+                        member.Task.RunTo(enemyTeam.spawnPositions[rnd.Next(enemyTeam.spawnPositions.Count)]);
+                        members.Add(member);
+                        enemyTeam.AddEnemy(member);
+                    }
                 }
             }
+
+            
         }
 
         
@@ -170,29 +179,50 @@ namespace TeamDeathmatch
 
         public void CheckMembers()
         {
-            if (members.Count == 0 || Game.Player.Character == null)
-                return;
+            int burningCount = 0;
 
-            for (int i = 0; i < members.Count; i++)
-            {
-                if (members[i] != Game.Player.Character)
+            if (members.Count != 0 && Game.Player.Character != null){
+                for (int i = 0; i < members.Count; i++)
                 {
-                    DeleteFarAway(members[i]);
-
-                    AvoidFleeing(members[i]);
-
-                    CheckDeadbodies(members[i]);
-
-                }
-                else
-                {
-                    if (!members[i].IsAlive)
+                    if (members[i] != null)
                     {
-                        members.Remove(members[i]);
-                        enemyTeam.kills++;
-                        enemyTeam.RemoveEnemy(members[i]);
+                        if (members[i] != Game.Player.Character)
+                        {
+                            if (members[i].IsOnFire)
+                                burningCount++;
+
+                            DeleteFarAway(members[i]);
+                            AvoidFleeing(members[i]);
+                            CheckDeadbodies(members[i]);
+
+
+                        }
+                        else
+                        {
+                            if (!members[i].IsAlive)
+                            {
+                                members.Remove(members[i]);
+                                enemyTeam.kills++;
+                                enemyTeam.RemoveEnemy(members[i]);
+                            }
+                        }
                     }
                 }
+
+                //if (!spawnLocked)
+                //{
+                //    if (burningCount > 1)
+                //    {
+                //        spawnLocked = true;
+                //        spawnLockTimer = 0;
+                //    }
+                //}
+                //else
+                //{
+                //    spawnLockTimer++;
+                //    if (spawnLockTimer > spawnLockTime)
+                //        spawnLocked = false;
+                //}
 
             }
         }
@@ -200,7 +230,7 @@ namespace TeamDeathmatch
         void DeleteFarAway(Ped member)
         {
             //Remove member who went far away
-            if (Vector3.Distance(member.Position, spawnPositions[0]) > 300)
+            if (Vector3.Distance(member.Position, spawnPositions[0]) > 1000)
             {
                 member.MarkAsNoLongerNeeded();
                 members.Remove(member);
@@ -280,14 +310,17 @@ namespace TeamDeathmatch
 
         public void SpawnTank()
         {
-            //spawn Tank
-            isTankInField = true;
-
+            //Spawn tank
             tank = World.CreateVehicle(new Model(VehicleHash.Rhino), vehSpawn);
+            if (tank == null)
+                return;
             tank.Health = 100;
             tank.LockStatus = VehicleLockStatus.Locked;
+
+            //Spawn tank driver
             tankDriver = tank.CreatePedOnSeat(VehicleSeat.Driver, ped);
-            //Function.Call(Hash.TASK_VEHICLE_GOTO_NAVMESH, tankDriver, tankDriver.CurrentVehicle, vehDest.X, vehDest.Y, vehDest.Z, 40f, 156, 2.5f);
+            if (tankDriver == null)
+                return;
             members.Add(tankDriver);
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, tankDriver, relationshipGroup);
             Function.Call(Hash.TASK_VEHICLE_DRIVE_TO_COORD, tankDriver, tankDriver.CurrentVehicle, vehDest.X, vehDest.Y, vehDest.Z, 20f, 1, tankDriver.CurrentVehicle, DrivingStyle.AvoidTrafficExtremely.GetHashCode(), -1.0, -1);
@@ -297,26 +330,34 @@ namespace TeamDeathmatch
             //Delete previous tank
             if (tankWreck != null)
                 tankWreck.Delete();
+
+            isTankInField = true;
         }
 
         public void SpawnGuntruck()
         {
-            //spawn insurgent
-            isGuntruckInField = true;
 
+            //Spawn insurgent
             ins = World.CreateVehicle(new Model(VehicleHash.Insurgent), vehSpawn);
+            if (ins == null)
+                return;
             ins.LockStatus = VehicleLockStatus.Locked;
             ins.CustomPrimaryColor = Color.Black;
             ins.CustomSecondaryColor = Color.Black;
-            //ins = World.CreateVehicle(new Model(VehicleHash.Technical), vehSpawn);
 
+            //Spawn driver and gunner
             guntruckDriver = ins.CreatePedOnSeat(VehicleSeat.Driver, ped);
+            guntruckGunner = ins.CreatePedOnSeat((VehicleSeat)7, ped);
+            if (guntruckDriver == null || guntruckGunner == null)
+                return;
+
+            //Driver setup
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, guntruckDriver, relationshipGroup);
             Function.Call(Hash.TASK_VEHICLE_GOTO_NAVMESH, guntruckDriver, guntruckDriver.CurrentVehicle, vehDest.X, vehDest.Y, vehDest.Z, 30f, 156, 2.5f);
             guntruckDriver.Weapons.Give(WeaponHash.MicroSMG/*whatever weapon you wanna give*/, 2000, true/*equip now*/, true);
             members.Add(guntruckDriver);
 
-            guntruckGunner = ins.CreatePedOnSeat((VehicleSeat)7, ped);
+            //Gunner setup
             guntruckGunner.Weapons.Give(WeaponHash.MicroSMG/*whatever weapon you wanna give*/, 300, true/*equip now*/, true);
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, guntruckGunner, relationshipGroup);
             int turret = Function.Call<int>(Hash.GET_HASH_KEY, "VEHICLE_WEAPON_TURRET_INSURGENT");
@@ -328,16 +369,15 @@ namespace TeamDeathmatch
             //Delete previous truck
             if (guntruckWreck != null)
                 guntruckWreck.Delete();
+
+            isGuntruckInField = true;
         }
 
         public void SpawnChopper()
         {
             Random rnd = new System.Random();
 
-            //spawn chopper
-            isChopperInField = true;
-
-            //Determine chopper randomly
+            //Spawn chopper randomly
             int intResult = rnd.Next(3);
             if (intResult == 0)
                 chopper = World.CreateVehicle(new Model(VehicleHash.Valkyrie), new Vector3(chopperPos.X, chopperPos.Y, chopperPos.Z + 70));
@@ -345,11 +385,19 @@ namespace TeamDeathmatch
                 chopper = World.CreateVehicle(new Model(VehicleHash.Buzzard), new Vector3(chopperPos.X, chopperPos.Y, chopperPos.Z + 70));
             else
                 chopper = World.CreateVehicle(new Model(VehicleHash.Savage), new Vector3(chopperPos.X, chopperPos.Y, chopperPos.Z + 70));
-
+            if (chopper == null)
+                return;
             chopper.EngineRunning = true;
 
-            //pilot setup
+            //Spawn pilot and gunners
             pilot = chopper.CreatePedOnSeat(VehicleSeat.Driver, ped);
+            chopperGunner = chopper.CreatePedOnSeat(VehicleSeat.Passenger, ped);
+            heliGunner = chopper.CreatePedOnSeat(VehicleSeat.LeftRear, ped);
+            heliGunner1 = chopper.CreatePedOnSeat(VehicleSeat.RightRear, ped);
+            if (pilot == null || chopperGunner == null || heliGunner == null || heliGunner1 == null)
+                return;
+
+            //Pilot setup
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, pilot, relationshipGroup);
             members.Add(pilot);
             pilot.Accuracy = 100;
@@ -359,15 +407,13 @@ namespace TeamDeathmatch
             //int rocketHash = Function.Call<int>(Hash.GET_HASH_KEY, "VEHICLE_WEAPON_PLAYER_SAVAGE");
             Function.Call(Hash.SET_CURRENT_PED_VEHICLE_WEAPON, pilot, rocketHash);
 
-            //gunner setup
-            chopperGunner = chopper.CreatePedOnSeat(VehicleSeat.Passenger, ped);
+            //Co-pilot gunner setup
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, chopperGunner, relationshipGroup);
             members.Add(chopperGunner);
             int wephash = Function.Call<int>(Hash.GET_HASH_KEY, "VEHICLE_WEAPON_NOSE_TURRET_VALKYRIE");
             Function.Call(Hash.SET_CURRENT_PED_VEHICLE_WEAPON, chopperGunner, wephash);
 
-            //sidegunner1 setup
-            heliGunner = chopper.CreatePedOnSeat(VehicleSeat.LeftRear, ped);
+            //Side gunner setup
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, heliGunner, relationshipGroup);
             members.Add(heliGunner);
             heliGunner.Accuracy = 100;
@@ -375,8 +421,7 @@ namespace TeamDeathmatch
             int valTurret = Function.Call<int>(Hash.GET_HASH_KEY, "VEHICLE_WEAPON_TURRET_VALKYRIE");
             Function.Call(Hash.SET_CURRENT_PED_VEHICLE_WEAPON, heliGunner, valTurret);
 
-            //sidegunner2 setup
-            heliGunner1 = chopper.CreatePedOnSeat(VehicleSeat.RightRear, ped);
+            //Side gunner1 setup
             Function.Call(Hash.SET_PED_RELATIONSHIP_GROUP_HASH, heliGunner1, relationshipGroup);
             members.Add(heliGunner1);
             heliGunner1.Accuracy = 100;
@@ -390,6 +435,8 @@ namespace TeamDeathmatch
             if (chopperWreck != null)
                 chopperWreck.Delete();
 
+            isChopperInField = true;
+
         }
 
         public void SpawnJuggernaut()
@@ -399,14 +446,15 @@ namespace TeamDeathmatch
             Random rnd = new System.Random();
 
             jug = World.CreatePed(juggernaut, spawnPositions[rnd.Next(spawnPositions.Count - 1)].Around(0.5f));
-            //jug = World.CreatePed(juggernaut, vehDest);
+            if (jug == null)
+                return;
+
             jug.MaxHealth = 4000;
             jug.Health = 2000;
             jug.Accuracy = 100;
             jug.Weapons.Give(WeaponHash.Minigun, 3000, true, true);
             jug.CanSufferCriticalHits = false;
             jug.IsFireProof = true;
-            //jug.IsExplosionProof = true;
             jug.IsMeleeProof = true;
             jug.CanRagdoll = false;
             jug.FiringPattern = FiringPattern.FullAuto;
@@ -514,7 +562,6 @@ namespace TeamDeathmatch
                     if (Vector3.Distance(ins.Position, vehDest) < 2)
                     {
                         carArrived = true;
-                        UI.Notify(teamName + " Guntruck arrived.");
                         //Function.Call(Hash.TASK_VEHICLE_PARK, guntruckDriver.CurrentVehicle, vehDest.X, vehDest.Y, vehDest.Z,0,0,30,true);
                         Function.Call(Hash.SET_VEHICLE_SHOOT_AT_TARGET, guntruckDriver, enemies[new Random().Next(enemies.Count)]);
                     }
@@ -568,7 +615,7 @@ namespace TeamDeathmatch
                         }
 
 
-                        if (timeSinceFired > 500)
+                        if (timeSinceFired > 400)
                             timeSinceFired = 0;
                     }
                     else
@@ -639,7 +686,10 @@ namespace TeamDeathmatch
             isGuntruckInField = false;
             carArrived = false;
             if (ins != null)
-                ins.Delete();
+            {
+                ins.MarkAsNoLongerNeeded();
+                ins = null;
+            }
             if (guntruckDriver != null)
                 guntruckDriver.MarkAsNoLongerNeeded();
             if (guntruckGunner != null)
@@ -648,7 +698,10 @@ namespace TeamDeathmatch
             isChopperInField = false;
             chopperArrived = false;
             if (chopper != null)
-                chopper.Delete();
+            {
+                chopper.MarkAsNoLongerNeeded();
+                chopper = null;
+            }
             if (pilot != null)
                 pilot.MarkAsNoLongerNeeded();
             if (chopperGunner!= null)
@@ -661,13 +714,16 @@ namespace TeamDeathmatch
             isTankInField = false;
             tankArrived = false;
             if (tank != null)
-                tank.Delete();
+            {
+                tank.MarkAsNoLongerNeeded();
+                tank = null;
+            }
             if (tankDriver != null)
                 tankDriver.MarkAsNoLongerNeeded();
 
             isJuggernautInField = false;
             if (jug != null)
-                jug.Delete();
+                jug.MarkAsNoLongerNeeded();
         }
 
     }

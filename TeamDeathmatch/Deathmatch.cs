@@ -131,6 +131,7 @@ namespace TeamDeathmatch
         UIMenuItem saveCurrentPed;
 
         //Settings
+        UIMenu settingMenu;
         UIMenuListItem locList;
         UIMenuListItem weaponsList;
         UIMenuListItem matchPointList;
@@ -734,13 +735,104 @@ namespace TeamDeathmatch
             mainMenu.OnCheckboxChange += OnMainMenuCheckboxChange;
             mainMenu.OnListChange += OnMainMenuListChange;
             mainMenu.OnMenuChange += OnMenuChanged;
-
         }
 
 
         void OnMenuChanged(UIMenu oldMenu, UIMenu newMenu, bool forward)
         {
             currentMenu = newMenu;
+            if (newMenu == locMenu || newMenu == settingMenu)
+                CreateBlips();
+        }
+
+        void CreateBlips()
+        {
+            for (int i = 0; i < team0.spawnPositions.Count; i++)
+            {
+                friendPosBlips.Add(World.CreateBlip(team0.spawnPositions[i]));
+                friendPosBlips[i].Sprite = BlipSprite.Standard;
+                if (i == 0)
+                    friendPosBlips[i].Scale = 1.3f;
+                friendPosBlips[i].Color = BlipColor.Blue;
+                friendPosBlips[i].Name = "Friendly Position " + i;
+            }
+
+            for (int i = 0; i < team1.spawnPositions.Count; i++)
+            {
+                enemyPosBlips.Add(World.CreateBlip(team1.spawnPositions[i]));
+                enemyPosBlips[i].Sprite = BlipSprite.Standard;
+                if (i == 0)
+                    enemyPosBlips[i].Scale = 1.3f;
+                enemyPosBlips[i].Color = BlipColor.Red;
+                enemyPosBlips[i].Name = "Enemy Position " + i;
+            }
+
+            enemyCarPosBlip = World.CreateBlip(team1.vehSpawn);
+            enemyCarPosBlip.Sprite = BlipSprite.Standard;
+            enemyCarPosBlip.Color = BlipColor.Yellow;
+            enemyCarPosBlip.Name = "Enemy Vehicle Spawns";
+
+            enemyCarDestBlip = World.CreateBlip(team1.vehDest);
+            enemyCarDestBlip.Sprite = BlipSprite.Standard;
+            enemyCarDestBlip.Color = BlipColor.Yellow;
+            enemyCarDestBlip.Name = "Enemy Vehicle Destination";
+
+            enemyChopperPosBlip = World.CreateBlip(team1.chopperPos);
+            enemyChopperPosBlip.Sprite = BlipSprite.Standard;
+            enemyChopperPosBlip.Color = BlipColor.Yellow;
+            enemyChopperPosBlip.Name = "Enemy Chopper Spawns";
+
+            enemyChopperDestBlip = World.CreateBlip(team1.chopperDest);
+            enemyChopperDestBlip.Sprite = BlipSprite.Standard;
+            enemyChopperDestBlip.Color = BlipColor.Yellow;
+            enemyChopperDestBlip.Name = "Enemy Chopper Destination";
+
+            friendlyCarPosBlip = World.CreateBlip(team0.vehSpawn);
+            friendlyCarPosBlip.Sprite = BlipSprite.Standard;
+            friendlyCarPosBlip.Color = BlipColor.Green;
+            friendlyCarPosBlip.Name = "Friendly Vehicle Spawns";
+
+            friendlyCarDestBlip = World.CreateBlip(team0.vehDest);
+            friendlyCarDestBlip.Sprite = BlipSprite.Standard;
+            friendlyCarDestBlip.Color = BlipColor.Green;
+            friendlyCarDestBlip.Name = "Friendly Vehicle Destination";
+
+            friendlyChopperPosBlip = World.CreateBlip(team0.chopperPos);
+            friendlyChopperPosBlip.Sprite = BlipSprite.Standard;
+            friendlyChopperPosBlip.Color = BlipColor.Green;
+            friendlyChopperPosBlip.Name = "Friendly Chopper Spawns";
+
+            friendlyChopperDestBlip = World.CreateBlip(team0.chopperDest);
+            friendlyChopperDestBlip.Sprite = BlipSprite.Standard;
+            friendlyChopperDestBlip.Color = BlipColor.Green;
+            friendlyChopperDestBlip.Name = "Friendly Chopper Destination";
+        }
+
+        void DeleteBlips()
+        {
+            foreach(Blip blip in friendPosBlips)
+                blip.Remove();
+            friendPosBlips.Clear();
+
+            foreach (Blip blip in enemyPosBlips)
+                blip.Remove();
+            enemyPosBlips.Clear();
+
+            enemyCarPosBlip.Remove();
+
+            enemyCarDestBlip.Remove();
+
+            enemyChopperPosBlip.Remove();
+
+            enemyChopperDestBlip.Remove();
+
+            friendlyCarPosBlip.Remove();
+
+            friendlyCarDestBlip.Remove();
+
+            friendlyChopperPosBlip.Remove();
+
+            friendlyChopperDestBlip.Remove();
         }
 
         void OnMainMenuItemSelect(UIMenu sender, UIMenuItem item, int index)
@@ -788,7 +880,7 @@ namespace TeamDeathmatch
 
         public void SettingMenu()
         {
-            UIMenu settingMenu = modMenuPool.AddSubMenu(mainMenu, "Settings");
+            settingMenu = modMenuPool.AddSubMenu(mainMenu, "Settings");
 
             locList = new UIMenuListItem("Location: ", listofLocationNames, 0);
             settingMenu.AddItem(locList);
@@ -863,6 +955,12 @@ namespace TeamDeathmatch
             settingMenu.OnCheckboxChange += OnSettingMenuCheckboxChange;
             settingMenu.OnListChange += OnSettingMenuListChange;
             settingMenu.OnMenuChange += OnMenuChanged;
+            settingMenu.OnMenuClose += SettingMenu_OnMenuClose;
+        }
+
+        private void SettingMenu_OnMenuClose(UIMenu sender)
+        {
+            DeleteBlips();
         }
 
         void OnSettingMenuItemSelect(UIMenu sender, UIMenuItem item, int index)
@@ -945,65 +1043,7 @@ namespace TeamDeathmatch
             locMenu = modMenuPool.AddSubMenu(mainMenu, "Location Editor");
             locMenu.AddItem(locList);
 
-            for (int i = 0; i < team0.spawnPositions.Count; i++)
-            {
-                friendPosBlips.Add(World.CreateBlip(team0.spawnPositions[i]));
-                friendPosBlips[i].Sprite = BlipSprite.Standard;
-                if (i == 0)
-                    friendPosBlips[i].Scale = 1.3f;
-                friendPosBlips[i].Color = BlipColor.Blue;
-                friendPosBlips[i].Name = "Friendly Position " + i;
-            }
 
-            for (int i = 0; i < team1.spawnPositions.Count; i++)
-            {
-                enemyPosBlips.Add(World.CreateBlip(team1.spawnPositions[i]));
-                enemyPosBlips[i].Sprite = BlipSprite.Standard;
-                if (i == 0)
-                    enemyPosBlips[i].Scale = 1.3f;
-                enemyPosBlips[i].Color = BlipColor.Red;
-                enemyPosBlips[i].Name = "Enemy Position " + i;
-            }
-
-            enemyCarPosBlip = World.CreateBlip(team1.vehSpawn);
-            enemyCarPosBlip.Sprite = BlipSprite.Standard;
-            enemyCarPosBlip.Color = BlipColor.Yellow;
-            enemyCarPosBlip.Name = "Enemy Vehicle Spawns";
-
-            enemyCarDestBlip = World.CreateBlip(team1.vehDest);
-            enemyCarDestBlip.Sprite = BlipSprite.Standard;
-            enemyCarDestBlip.Color = BlipColor.Yellow;
-            enemyCarDestBlip.Name = "Enemy Vehicle Destination";
-
-            enemyChopperPosBlip = World.CreateBlip(team1.chopperPos);
-            enemyChopperPosBlip.Sprite = BlipSprite.Standard;
-            enemyChopperPosBlip.Color = BlipColor.Yellow;
-            enemyChopperPosBlip.Name = "Enemy Chopper Spawns";
-
-            enemyChopperDestBlip = World.CreateBlip(team1.chopperDest);
-            enemyChopperDestBlip.Sprite = BlipSprite.Standard;
-            enemyChopperDestBlip.Color = BlipColor.Yellow;
-            enemyChopperDestBlip.Name = "Enemy Chopper Destination";
-
-            friendlyCarPosBlip = World.CreateBlip(team0.vehSpawn);
-            friendlyCarPosBlip.Sprite = BlipSprite.Standard;
-            friendlyCarPosBlip.Color = BlipColor.Green;
-            friendlyCarPosBlip.Name = "Friendly Vehicle Spawns";
-
-            friendlyCarDestBlip = World.CreateBlip(team0.vehDest);
-            friendlyCarDestBlip.Sprite = BlipSprite.Standard;
-            friendlyCarDestBlip.Color = BlipColor.Green;
-            friendlyCarDestBlip.Name = "Friendly Vehicle Destination";
-
-            friendlyChopperPosBlip = World.CreateBlip(team0.chopperPos);
-            friendlyChopperPosBlip.Sprite = BlipSprite.Standard;
-            friendlyChopperPosBlip.Color = BlipColor.Green;
-            friendlyChopperPosBlip.Name = "Friendly Chopper Spawns";
-
-            friendlyChopperDestBlip = World.CreateBlip(team0.chopperDest);
-            friendlyChopperDestBlip.Sprite = BlipSprite.Standard;
-            friendlyChopperDestBlip.Color = BlipColor.Green;
-            friendlyChopperDestBlip.Name = "Friendly Chopper Destination";
 
             friendlyPos = new UIMenuItem("Friendly Spawn Position");
             locMenu.AddItem(friendlyPos);
@@ -1041,7 +1081,13 @@ namespace TeamDeathmatch
             locMenu.OnItemSelect += OnLocationEditorItemSelect;
             locMenu.OnListChange += OnLocationEditorOnListChange;
             locMenu.OnMenuChange += OnMenuChanged;
+            locMenu.OnMenuClose += LocMenu_OnMenuClose;
+        }
 
+        private void LocMenu_OnMenuClose(UIMenu sender)
+        {
+            DeleteBlips();
+            //throw new NotImplementedException();
         }
 
         void OnLocationEditorOnListChange(UIMenu sender, UIMenuItem item, int index)
